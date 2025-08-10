@@ -11,6 +11,15 @@ app.use(json({ limit: '2mb' }));
 
 // Health
 app.get('/health', (_req, res) => res.json({ ok: true }));
+// Root route
+app.get("/", (_req, res) => {
+  res.send("Packity Concierge API is running ✅");
+});
+
+// Detailed health route
+app.get("/healthz", (_req, res) => {
+  res.status(200).json({ status: "ok", uptime: process.uptime() });
+});
 
 // Simple chat endpoint (text). Voice can be added later.
 app.post('/api/realtime/message', async (req, res) => {
@@ -85,6 +94,15 @@ app.post('/review/publish', basicAuth, express.urlencoded({ extended: false }), 
   const id = (req.body as any).id;
   await shopify.publishProduct(id);
   res.redirect('/review');
+});
+// Root route
+app.get("/", (_req, res) => {
+  res.send("Packity Concierge API is running ✅");
+});
+
+// Detailed health route
+app.get("/healthz", (_req, res) => {
+  res.status(200).json({ status: "ok", uptime: process.uptime() });
 });
 
 const PORT = Number(process.env.PORT || 8787);
