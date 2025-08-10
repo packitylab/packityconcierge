@@ -1,0 +1,6 @@
+{%- comment -%} PackityLab AI Concierge Widget {%- endcomment -%}
+<script>
+  window.PACKITY_WIDGET_ORIGIN = '{{ settings.packity_widget_origin | default: 'http://localhost:8787' }}';
+  window.PACKITY_PERSONA = 'lunari';
+</script>
+<script src="{{ 'widget.js' | asset_url }}" defer></script>
