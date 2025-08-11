@@ -1,3 +1,4 @@
+import cors from "cors";
 import 'dotenv/config';
 import express from 'express';
 import fetch from 'node-fetch';
@@ -7,8 +8,8 @@ import { tools } from './lib/tools.js';
 import { basicAuth } from './lib/utils.js';
 
 const app = express();
+app.use(cors({ origin: "*" }));
 app.use(json({ limit: '2mb' }));
-
 // Health
 app.get('/health', (_req, res) => res.json({ ok: true }));
 // Root route
