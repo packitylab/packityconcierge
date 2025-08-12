@@ -1,49 +1,35 @@
-import express from 'express';
-import bodyParser from 'body-parser';
-import cors from 'cors';
-import OpenAI from 'openai';
+import express from "express";
+import cors from "cors";
+import OpenAI from "openai";
 
 const app = express();
-const port = process.env.PORT || 3000;
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY, // Make sure this key is set in Render
-});
-
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
 
-app.post('/chat', async (req, res) => {
-  const { message } = req.body;
+const PORT = Number(process.env.PORT) || 3000;
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-  if (!message) {
-    return res.status(400).send({ error: 'Message is required' });
-  }
+app.get("/", (_req, res) => res.send("packity concierge up"));
+// Optional: keep or ignore this; Render health check not required for chat
+app.get("/healthz", (_req, res) => res.status(200).send("ok"));
 
+app.post("/chat", async (req, res) => {
   try {
-    const chatCompletion = await openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You are Kai and Lunari, two AI shopping assistants for PackityLab. Be smart, humble, helpful, and talk like you’re from a futuristic boutique.',
-        },
-        {
-          role: 'user',
-          content: message,
-        },
-      ],
+    const { message, model } = req.body ?? {};
+    if (!message) return res.status(400).json({ error: "message is required" });
+
+    const out = await client.chat.completions.create({
+      model: model || "gpt-4o-mini",
+      messages: [{ role: "user", content: message }],
     });
 
-    const reply = chatCompletion.choices[0].message?.content;
-    res.send({ reply });
-  } catch (err) {
+    res.json({ reply: out.choices?.[0]?.message?.content ?? "" });
+  } catch (err: any) {
     console.error(err);
-    res.status(500).send({ error: 'Failed to get response from OpenAI' });
+    res.status(500).json({ error: err?.message || "server error" });
   }
 });
-app.get('/healthz', (_req, res) => res.status(200).send('ok'));
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`API listening on ${PORT}`);
 });
