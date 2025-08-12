@@ -43,7 +43,7 @@ app.post('/chat', async (req, res) => {
     res.status(500).send({ error: 'Failed to get response from OpenAI' });
   }
 });
-
+app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
