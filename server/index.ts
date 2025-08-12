@@ -7,16 +7,16 @@ const app = new Hono();
 app.use(cors());
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "", // Make sure this is added in Render Environment Variables
+  apiKey: process.env.OPENAI_API_KEY || "", // MUST be defined in your Render Environment settings
 });
 
-// --- Persona styles
+// Persona styles
 const personaStyle: Record<string, string> = {
   kai: "You are Kai: concise, technical, a little dry, always practical.",
   lunari: "You are Lunari: warm, helpful, lightly poetic, friendly.",
 };
 
-// --- Generate reply
+// Generate reply function
 async function generateReply(persona: string, userText: string): Promise<string> {
   const p = (persona || "lunari").toLowerCase();
   const style = personaStyle[p] ?? personaStyle.lunari;
@@ -35,14 +35,14 @@ async function generateReply(persona: string, userText: string): Promise<string>
       temperature: 0.7,
     });
 
-    return res.choices[0].message.content || "No reply from AI.";
-  } catch (err) {
-    console.error("OpenAI error:", err);
-    return "Sorry, I couldn't process that. Please try again.";
+    return res.choices[0]?.message?.content ?? "No reply from AI.";
+  } catch (error) {
+    console.error("OpenAI Error:", error);
+    return "Sorry, there was an error generating a reply.";
   }
 }
 
-// --- API endpoint
+// API route
 app.post("/api/chat", async (c: Context) => {
   const { persona, message } = await c.req.json();
   const reply = await generateReply(persona, message);
