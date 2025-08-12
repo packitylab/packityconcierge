@@ -1,110 +1,104 @@
-import cors from "cors";
-import 'dotenv/config';
-import express from 'express';
-import fetch from 'node-fetch';
-import { json } from 'express';
-import { shopify } from './lib/shopify.js';
-import { tools } from './lib/tools.js';
-import { basicAuth } from './lib/utils.js';
+// --- Core & AI setup ---------------------------------------------------------
+import OpenAI from "openai";
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
 
+import cors from "cors";
+import "dotenv/config";
+import express from "express";
+
+// If you use these elsewhere in your project, keep them.
+// They’re used below for the /review routes so TS doesn’t complain.
+import fetch from "node-fetch";
+import { shopify } from "./lib/shopify.js";
+import { tools } from "./lib/tools.js";
+import { basicAuth } from "./lib/utils.js";
+
+// --- App init ---------------------------------------------------------------
 const app = express();
-app.use(cors({ origin: "*" }));
-app.use(json({ limit: '2mb' }));
-// Health
-app.get('/health', (_req, res) => res.json({ ok: true }));
-// Root route
+app.use(cors({ origin: "*" })); // tighten later for production
+app.use(express.json({ limit: "2mb" }));
+
+// --- Persona styles + reply generator ---------------------------------------
+const personaStyle: Record<string, string> = {
+  kai: "You are Kai: concise, technical, a little dry, always practical.",
+  lunari: "You are Lunari: warm, helpful, lightly poetic, friendly."
+};
+
+async function generateReply(persona: string, userText: string): Promise<string> {
+  const p = (persona || "lunari").toLowerCase();
+  const style = personaStyle[p] ?? personaStyle.lunari;
+
+  // Demo mode if no OpenAI key present
+  if (!openai) {
+    return `${p[0].toUpperCase() + p.slice(1)}: I heard “${userText}”. I’m alive and responding (demo mode).`;
+  }
+
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: style },
+      { role: "user", content: userText }
+    ],
+    temperature: 0.7
+  });
+
+  return res.choices[0]?.message?.content ?? "… (no content)";
+}
+
+// --- Health & root ----------------------------------------------------------
+app.get("/health", (_req, res) => res.json({ ok: true }));
+
 app.get("/", (_req, res) => {
   res.send("Packity Concierge API is running ✅");
 });
 
-// Detailed health route
 app.get("/healthz", (_req, res) => {
   res.status(200).json({ status: "ok", uptime: process.uptime() });
 });
 
-// Simple chat endpoint (text). Voice can be added later.
-app.post('/api/realtime/message', async (req, res) => {
-  const { persona = 'lunari', input, conversation } = req.body || {};
-  if (!input) return res.status(400).json({ error: 'missing input' });
+// --- Unified chat endpoint (Kai & Lunari) -----------------------------------
+app.post("/api/realtime/message", async (req, res) => {
+  try {
+    const { persona, input, conversation, text } = req.body || {};
+    const userText = String(input ?? conversation ?? text ?? "").trim();
+    if (!userText) return res.status(400).json({ error: "missing input" });
 
-  const system = `You are ${persona === 'kai' ? 'Kai' : 'Lunari'}, a polite AI concierge for PackityLab.
-Rules:
-- NEVER change prices or publish products.
-- You may only call tools exposed by the server.
-- For purchases, create a draft order and ask for email to send invoice.
-- Tone: concise, helpful, a touch of warmth.`;
+    const who = String(persona ?? "lunari");
+    const reply = await generateReply(who, userText);
 
-  const payload = {
-    model: process.env.OPENAI_TEXT_MODEL || "gpt-5.1",
-    messages: [
-      { role: 'system', content: system },
-      ...(Array.isArray(conversation) ? conversation : []),
-      { role: 'user', content: input }
-    ],
-    tools: tools.schema,
-    tool_choice: 'auto'
-  } as any;
-
-  const r = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-  const data = await r.json();
-
-  const toolCall = data?.choices?.[0]?.message?.tool_calls?.[0];
-  if (toolCall) {
-    const name = toolCall.function?.name;
-    const args = JSON.parse(toolCall.function?.arguments || '{}');
-    try {
-      const result = await tools.execute(name, args);
-      return res.json({ tool: name, result });
-    } catch (e: any) {
-      return res.status(500).json({ tool: name, error: e?.message || 'tool error' });
-    }
+    return res.status(200).json({ persona: who, text: reply });
+  } catch (e: any) {
+    console.error(e);
+    return res.status(500).json({ error: e?.message || "server error" });
   }
-
-  const text = data?.choices?.[0]?.message?.content ?? '';
-  res.json({ text });
 });
 
-// Webhooks (optional during dev)
-app.post('/webhooks/products', async (req, res) => {
-  console.log('Product webhook');
-  res.sendStatus(200);
-});
-
-app.post('/webhooks/inventory', async (req, res) => {
-  console.log('Inventory webhook');
-  res.sendStatus(200);
-});
-
-// Review UI for drafts -> publish
-app.get('/review', basicAuth, async (_req, res) => {
+// --- (Optional) simple review helper routes to keep your earlier features ---
+app.get("/review", basicAuth, async (_req, res) => {
   const drafts = await shopify.listDraftProducts();
-  const items = drafts.map(p => `<li><b>${p.title}</b> — ${p.id}
-  <form method="post" action="/review/publish" style="display:inline">
-    <input type="hidden" name="id" value="${p.id}">
-    <button>Publish</button>
-  </form></li>`).join('');
-  res.setHeader('Content-Type','text/html');
+  const items = drafts.map((p: any) => `<li><b>${p.title}</b> – ${p.id}
+    <form method="post" action="/review/publish" style="display:inline">
+      <input type="hidden" name="id" value="${p.id}">
+      <button>Publish</button>
+    </form></li>`).join("");
+  res.setHeader("Content-Type", "text/html");
   res.end(`<h1>Drafts</h1><ul>${items}</ul>`);
 });
 
-app.post('/review/publish', basicAuth, express.urlencoded({ extended: false }), async (req, res) => {
-  const id = (req.body as any).id;
-  await shopify.publishProduct(id);
-  res.redirect('/review');
-});
-// Root route
-app.get("/", (_req, res) => {
-  res.send("Packity Concierge API is running ✅");
-});
+app.post(
+  "/review/publish",
+  basicAuth,
+  express.urlencoded({ extended: false }),
+  async (req, res) => {
+    const id = (req.body as any)?.id;
+    if (!id) return res.status(400).send("Missing id");
+    await shopify.publishProduct(id);
+    res.redirect("/review");
+  }
+);
 
-// Detailed health route
-app.get("/healthz", (_req, res) => {
-  res.status(200).json({ status: "ok", uptime: process.uptime() });
-});
-
+// --- Start server -----------------------------------------------------------
 const PORT = Number(process.env.PORT || 8787);
-app.listen(PORT, () => console.log('Server on', PORT));
+app.listen(PORT, () => console.log("Server on", PORT));
