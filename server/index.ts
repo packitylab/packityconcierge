@@ -1,52 +1,43 @@
-import { Hono } from "hono";
-import { cors } from "hono/cors";
-import { Context } from "hono";
-import OpenAI from "openai";
+import express from 'express';
+import bodyParser from 'body-parser';
+import cors from 'cors';
+import { Configuration, OpenAIApi } from 'openai';
 
-const app = new Hono();
-app.use(cors());
+const app = express();
+const port = process.env.PORT || 3000;
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "", // Set this in Render Environment
+const configuration = new Configuration({
+  apiKey: process.env.OPENAI_API_KEY,
 });
+const openai = new OpenAIApi(configuration);
 
-// Persona definitions
-const personaStyle: Record<string, string> = {
-  kai: "You are Kai: concise, technical, a little dry, always practical.",
-  lunari: "You are Lunari: warm, helpful, lightly poetic, friendly.",
-};
+app.use(cors());
+app.use(bodyParser.json());
 
-// Reply generator
-async function generateReply(persona: string, userText: string): Promise<string> {
-  const p = (persona || "lunari").toLowerCase();
-  const style = personaStyle[p] ?? personaStyle.lunari;
+app.post('/chat', async (req, res) => {
+  const { message } = req.body;
 
-  if (!openai.apiKey) {
-    return `${p[0].toUpperCase() + p.slice(1)} heard: "${userText}". (demo mode)`;
+  if (!message) {
+    return res.status(400).send({ error: 'Message is required' });
   }
 
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+    const response = await openai.createChatCompletion({
+      model: 'gpt-4',
       messages: [
-        { role: "system", content: style },
-        { role: "user", content: userText },
+        { role: 'system', content: 'You are Kai and Lunari, two AI shopping assistants for PackityLab. Be smart, humble, helpful, and talk like a Harvard-educated concierge.' },
+        { role: 'user', content: message },
       ],
-      temperature: 0.7,
     });
 
-    return response.choices[0].message?.content || "No response.";
-  } catch (error) {
-    console.error("OpenAI error:", error);
-    return "An error occurred while generating the reply.";
+    const reply = response.data.choices[0].message?.content;
+    res.send({ reply });
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).send({ error: 'Failed to get response from OpenAI' });
   }
-}
-
-// Route handler
-app.post("/api/chat", async (c: Context) => {
-  const { persona, message } = await c.req.json();
-  const reply = await generateReply(persona, message);
-  return c.json({ reply });
 });
 
-export default app;
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
