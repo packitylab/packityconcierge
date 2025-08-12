@@ -1,26 +1,20 @@
 {
-  "name": "packitylab-ai-concierge",
-  "version": "0.1.1",
-  "type": "module",
+  "name": "packityconcierge",
+  "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "tsx watch server/index.ts",
-    "start": "node --loader tsx server/index.ts"
-    "generate:pack": "tsx tools/generate-pack.ts --sku=TESTSKU --voice=lunari",
-    "register:webhooks": "tsx tools/register-webhooks.ts"
+    "start": "tsx server/index.ts",
+    "dev": "tsx watch server/index.ts"
   },
   "dependencies": {
-    "cookie": "^0.6.0",
     "express": "^4.19.2",
-    "form-data": "^4.0.0",
-    "node-fetch": "^3.3.2",
-    "openai": "^4.53.0",
-    "ws": "^8.17.1",
-    "dotenv": "^16.4.5",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "openai": "^4.53.0"
   },
   "devDependencies": {
-    "tsx": "^4.19.2",
-    "typescript": "^5.5.4"
-  }
+    "typescript": "^5.5.4",
+    "tsx": "^4.15.7"
+  },
+  "engines": { "node": ">=18 <23" }
 }
