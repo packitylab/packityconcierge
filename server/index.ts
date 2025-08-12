@@ -1,15 +1,14 @@
 import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
-import { Configuration, OpenAIApi } from 'openai';
+import OpenAI from 'openai';
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY,
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY, // Make sure this key is set in Render
 });
-const openai = new OpenAIApi(configuration);
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -22,17 +21,24 @@ app.post('/chat', async (req, res) => {
   }
 
   try {
-    const response = await openai.createChatCompletion({
+    const chatCompletion = await openai.chat.completions.create({
       model: 'gpt-4',
       messages: [
-        { role: 'system', content: 'You are Kai and Lunari, two AI shopping assistants for PackityLab. Be smart, humble, helpful, and talk like a Harvard-educated concierge.' },
-        { role: 'user', content: message },
+        {
+          role: 'system',
+          content:
+            'You are Kai and Lunari, two AI shopping assistants for PackityLab. Be smart, humble, helpful, and talk like you’re from a futuristic boutique.',
+        },
+        {
+          role: 'user',
+          content: message,
+        },
       ],
     });
 
-    const reply = response.data.choices[0].message?.content;
+    const reply = chatCompletion.choices[0].message?.content;
     res.send({ reply });
-  } catch (err: any) {
+  } catch (err) {
     console.error(err);
     res.status(500).send({ error: 'Failed to get response from OpenAI' });
   }
