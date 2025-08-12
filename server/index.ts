@@ -7,26 +7,26 @@ const app = new Hono();
 app.use(cors());
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "", // MUST be defined in your Render Environment settings
+  apiKey: process.env.OPENAI_API_KEY || "", // Set this in Render Environment
 });
 
-// Persona styles
+// Persona definitions
 const personaStyle: Record<string, string> = {
   kai: "You are Kai: concise, technical, a little dry, always practical.",
   lunari: "You are Lunari: warm, helpful, lightly poetic, friendly.",
 };
 
-// Generate reply function
+// Reply generator
 async function generateReply(persona: string, userText: string): Promise<string> {
   const p = (persona || "lunari").toLowerCase();
   const style = personaStyle[p] ?? personaStyle.lunari;
 
   if (!openai.apiKey) {
-    return `${p[0].toUpperCase() + p.slice(1)} heard: "${userText}". I’m alive and responding (demo mode).`;
+    return `${p[0].toUpperCase() + p.slice(1)} heard: "${userText}". (demo mode)`;
   }
 
   try {
-    const res = await openai.chat.completions.create({
+    const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
         { role: "system", content: style },
@@ -35,14 +35,14 @@ async function generateReply(persona: string, userText: string): Promise<string>
       temperature: 0.7,
     });
 
-    return res.choices[0]?.message?.content ?? "No reply from AI.";
+    return response.choices[0].message?.content || "No response.";
   } catch (error) {
-    console.error("OpenAI Error:", error);
-    return "Sorry, there was an error generating a reply.";
+    console.error("OpenAI error:", error);
+    return "An error occurred while generating the reply.";
   }
 }
 
-// API route
+// Route handler
 app.post("/api/chat", async (c: Context) => {
   const { persona, message } = await c.req.json();
   const reply = await generateReply(persona, message);
