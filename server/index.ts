@@ -25,15 +25,47 @@ const personaStyle: Record<string, string> = {
   kai: "You are Kai: concise, technical, a little dry, always practical.",
   lunari: "You are Lunari: warm, helpful, lightly poetic, friendly."
 };
-
 async function generateReply(persona: string, userText: string): Promise<string> {
+  // hard-fail if the server isn’t configured correctly
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY missing on server");
+  }
+
   const p = (persona || "lunari").toLowerCase();
+
+  // PackityLab brand voice
+  const BRAND = `You are a concierge for PackityLab — a global AI retail brand.
+  Be gentle, humble and genuinely helpful. Use clear, confident language.
+  We predict trends, surface viral products, and match people with the “magic”
+  they want for everyday life and special experiences. Never pushy; always useful.`;
+
+  const personaStyle: Record<string, string> = {
+    kai: `${BRAND}
+    Role: Kai — global business & marketing strategist.
+    Voice: concise, technical, practical. Focus on ROI, funnels, CAC/LTV, ops efficiency.
+    Provide crisp next actions, optional cross/upsell angles, and measurable outcomes.`,
+
+    lunari: `${BRAND}
+    Role: Lunari — warm retail guide & product matchmaker.
+    Voice: friendly, lightly poetic, reassuring. Suggest discovery paths, tasteful bundles,
+    and delightful ideas. Keep it short, kind, and confidence-building.`
+  };
+
   const style = personaStyle[p] ?? personaStyle.lunari;
 
-  // Demo mode if no OpenAI key present
-  if (!openai) {
-    return `${p[0].toUpperCase() + p.slice(1)}: I heard “${userText}”. I’m alive and responding (demo mode).`;
-  }
+  const res = await openai!.chat.completions.create({
+    model: "gpt-4o",  // or "gpt-4o-mini" if you prefer cheaper
+    messages: [
+      { role: "system", content: style },
+      { role: "user", content: userText }
+    ],
+    temperature: 0.7
+  });
+
+  const text = res.choices[0]?.message?.content?.trim();
+  if (!text) throw new Error("Empty response from model");
+  return text;
+}
 
   const res = await openai.chat.completions.create({
     model: "gpt-4o-mini",
